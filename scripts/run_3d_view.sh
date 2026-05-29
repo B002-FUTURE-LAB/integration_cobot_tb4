@@ -9,6 +9,11 @@ RVIZ_LOG="/tmp/cobot_tb4_3d_rviz.log"
 DISCOVERY_MODE="${COBOT_TB4_DISCOVERY_MODE:-auto}"
 
 setup_ros_env() {
+  if [ -z "${ROS_DISCOVERY_SERVER:-}" ] && [ -f "${ROOT_DIR}/../turtlebot4_jazzy/setup.bash" ]; then
+    echo "[*] Auto-sourcing ${ROOT_DIR}/../turtlebot4_jazzy/setup.bash..."
+    source "${ROOT_DIR}/../turtlebot4_jazzy/setup.bash"
+  fi
+
   had_nounset=0
   case "$-" in *u*) had_nounset=1; set +u ;; esac
   source /opt/ros/jazzy/setup.bash
@@ -19,6 +24,10 @@ setup_ros_env() {
   export ROS_AUTOMATIC_DISCOVERY_RANGE="${ROS_AUTOMATIC_DISCOVERY_RANGE:-SUBNET}"
   export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
   export COBOT_TB4_DISCOVERY_MODE="${DISCOVERY_MODE}"
+
+  if [ -f "${ROOT_DIR}/../turtlebot4_jazzy/setup.bash" ]; then
+    source "${ROOT_DIR}/../turtlebot4_jazzy/setup.bash"
+  fi
 
   if [ "${DISCOVERY_MODE}" = "local" ]; then
     unset ROS_DISCOVERY_SERVER ROS_SUPER_CLIENT
@@ -108,15 +117,16 @@ pkill -f "__ns:=/env3d_" >/dev/null 2>&1 || true
 pkill -f "[r]viz2 -d ${ROOT_DIR}/config/turtle_cobot_3d.rviz" >/dev/null 2>&1 || true
 sleep 1
 
-setsid bash -lc "
+setsid bash -c "
   $(ros_env_for_child)
   ros2 launch ${ROOT_DIR}/launch/env3d.launch.py
 " > "${SCENE_LOG}" 2>&1 < /dev/null &
 echo "$!" > "${SCENE_PID_FILE}"
 
-setsid rviz2 -d "${ROOT_DIR}/config/turtle_cobot_3d.rviz" \
-  --ros-args -r __node:=rviz2_cobot_tb4_3d \
-  > "${RVIZ_LOG}" 2>&1 < /dev/null &
+setsid bash -c "
+  $(ros_env_for_child)
+  rviz2 -d '${ROOT_DIR}/config/turtle_cobot_3d.rviz' --ros-args -r __node:=rviz2_cobot_tb4_3d
+" > "${RVIZ_LOG}" 2>&1 < /dev/null &
 echo "$!" > "${RVIZ_PID_FILE}"
 
 echo "[OK] Janela RViz 3D solicitada."
