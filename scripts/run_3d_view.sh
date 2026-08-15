@@ -69,7 +69,7 @@ default_map_yaml() {
 }
 
 MAP_YAML="$(
-  (ros2 param get /map_server yaml_filename 2>/dev/null || true) \
+  (timeout 4 ros2 param get /map_server yaml_filename 2>/dev/null || true) \
     | sed -n 's/^String value is: //p' \
     | tail -1
 )"
