@@ -1,18 +1,18 @@
-# Cobot + TurtleBot4 Integration Overlay
+# Cobot + TurtleBot 4 Integration Overlay
 
-Terceira camada para visualizar TurtleBot4 e MyCobot no mesmo referencial, sem alterar os workspaces existentes.
+Third-layer package to visualize **TurtleBot 4** and **MyCobot 280** in the same coordinate frame (`map`) without altering their existing workspaces.
 
-## Ideia
+## Concept
 
-- TurtleBot4 continua rodando como hoje: ROS 2 Jazzy, Gazebo Harmonic, Nav2, FastDDS.
-- MyCobot continua rodando como hoje: ROS 2 Galactic, MoveIt, CycloneDDS, bridge no Jetson Nano.
-- Este overlay só adiciona:
-  - `map -> mycobot_base_link` fixo em `x=-0.338416188955307`, `y=1.1060110330581665`, `z=0.80`;
-  - uma mesa visual nessa posição;
-  - o modelo URDF do MyCobot no RViz do lado Jazzy;
-  - espelhamento de `/joint_states` do MyCobot via UDP para visualizacao no grafo Jazzy.
+- **TurtleBot 4** continues running natively on ROS 2 Jazzy, Gazebo Harmonic / physical hardware, Nav2, and FastDDS.
+- **MyCobot 280** continues running on ROS 2 Galactic, MoveIt 2, CycloneDDS, and the Jetson Nano hardware bridge.
+- This overlay adds:
+  - A static transform `map -> mycobot_base_link` at `x=-0.338416188955307`, `y=1.1060110330581665`, `z=0.80`;
+  - Visual 3D room furniture, floor, LiDAR-height map obstacle strips, and the MyCobot table at that position;
+  - The MyCobot 280 URDF model inside the Jazzy RViz scene;
+  - Real-time mirroring of MyCobot `/joint_states` over UDP into `/mycobot/joint_states` on the Jazzy graph.
 
-## Coordenada de ancoragem
+## Anchor Coordinates
 
 ```text
 map
@@ -23,76 +23,74 @@ map
     yaw:  0.0
 ```
 
-`z=0.80` representa a altura do tampo da mesa. A mesa publicada pelo overlay fica com topo nesse Z.
+`z=0.80` represents the tabletop height where the MyCobot base is mounted.
 
-## Uso rapido
+## Quick Start
 
-1. Inicie o TurtleBot4 exatamente como ja funciona:
+1. Start TurtleBot 4 (simulation or physical localization/Nav2):
 
 ```bash
-cd /home/mhc/Germany/turtlebot4_jazzy
+cd ~/B002_Future_Lab_Bots/turtlebot4_jazzy
 ./sim/run_lab_world.sh true true 0.0 0.0 0.0
 ```
 
-2. Em outro terminal, lance o overlay. Se o TurtleBot4 estiver rodando no host, use:
+2. In another terminal, launch the host overlay:
 
 ```bash
-cd /home/mhc/Germany/cobot_tb4_integration
+cd ~/B002_Future_Lab_Bots/integration_cobot_tb4
 ./scripts/run_host_overlay.sh start
 ```
 
-Esse comando tambem inicia a ponte de juntas reais:
+This command also starts the live joint-state UDP bridge:
 
 ```text
 Galactic/container /joint_states -> UDP -> Jazzy/host /mycobot/joint_states
 ```
 
-Se o TurtleBot4 estiver rodando dentro do container `tb4_sim`, use:
+If TurtleBot 4 is running inside the `tb4_sim` container, use:
 
 ```bash
-cd /home/mhc/Germany/cobot_tb4_integration
+cd ~/B002_Future_Lab_Bots/integration_cobot_tb4
 ./scripts/install_overlay_into_tb4_container.sh
 ./scripts/launch_overlay_in_tb4_container.sh static
 ```
 
-3. No RViz do TurtleBot4, use `Fixed Frame = map` e adicione:
-
+3. In TurtleBot 4's RViz, set `Fixed Frame = map` and add:
 - `TF`
-- `MarkerArray` em `/cobot_tb4_overlay/markers`
-- `RobotModel` usando `/mycobot/robot_description` se quiser ver o URDF do MyCobot no mesmo RViz.
+- `MarkerArray` on `/cobot_tb4_overlay/markers`
+- `RobotModel` using `/mycobot/robot_description` to see the MyCobot URDF in the same RViz window.
 
-## Segunda janela 3D
+## Dedicated Integrated 3D View Window
 
-Com o TurtleBot4/Nav2 ja rodando no host, abra uma janela RViz separada para inspecao 3D:
+With TurtleBot 4 / Nav2 running on the host, open a dedicated 3D RViz window:
 
 ```bash
-cd /home/mhc/Germany/cobot_tb4_integration
+cd ~/B002_Future_Lab_Bots/integration_cobot_tb4
 ./scripts/run_3d_view.sh
 ```
 
-Esse comando:
+This command:
+- Reads the active map from `/map_server` (`yaml_filename`);
+- Generates 3D obstacle geometry and semantic room furniture from the saved map;
+- Publishes the static anchor `map -> mycobot_base_link`;
+- Starts/restarts the MyCobot real joint-state bridge if the `mycobot_ros2` container is running;
+- Opens a dedicated RViz window showing TurtleBot 4, MyCobot 280, and the 3D laboratory environment.
 
-- le o mapa ativo em `/map_server yaml_filename`;
-- gera obstaculos 3D de 80 cm a partir das celulas ocupadas do mapa salvo;
-- garante a ancora do MyCobot em `map -> mycobot_base_link`;
-- reinicia a ponte de juntas reais do MyCobot, se o container `mycobot_ros2` estiver ativo;
-- abre um novo RViz com TurtleBot4, MyCobot e obstaculos 3D.
+## MyCobot Joint-State Bridge
 
-## Ponte das juntas do MyCobot
-
-Para gerenciar apenas a ponte que faz o braco 3D acompanhar o estado real/controlado pelo MoveIt:
+To manage only the UDP bridge that mirrors the real/MoveIt arm state into Jazzy:
 
 ```bash
-cd /home/mhc/Germany/cobot_tb4_integration
+cd ~/B002_Future_Lab_Bots/integration_cobot_tb4
 ./scripts/start_mycobot_joint_exporter.sh status
 ./scripts/start_mycobot_joint_exporter.sh start
 ./scripts/start_mycobot_joint_exporter.sh stop
 ```
 
-Essa ponte nao usa bridge ROS entre Galactic e Jazzy. Ela manda somente `sensor_msgs/JointState` em JSON por UDP e republica em `/mycobot/joint_states` no Jazzy. Controle continua no MoveIt original.
+This bridge does not require a ROS 2 distro bridge between Galactic and Jazzy; it serializes `sensor_msgs/JointState` as JSON over UDP and republishes `/mycobot/joint_states` in Jazzy while keeping arm control in the original MoveIt 2 stack.
 
-## Limites desta primeira camada
+## Scope & Boundaries
 
-- Nao muda Nav2, Gazebo ou missões do TurtleBot4.
-- Nao muda MoveIt, bridge ou visual servoing do MyCobot.
-- A visualizacao do MyCobot no Gazebo ainda e tratada como proxima fase. Esta camada ja cria o frame correto e o modelo no RViz, que e o caminho mais seguro para integrar sem misturar distros ROS.
+- Does not modify TurtleBot 4 Nav2, Gazebo, or mission routines.
+- Does not modify MyCobot MoveIt 2, hardware bridge, or visual servoing.
+- Provides a clean, distro-independent 3D visualization and TF integration in RViz.
